@@ -8,7 +8,7 @@ app.use(express.json());
 // Routes
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'Hello World! PR-dev-test-2 deployment',
+    message: 'Hello World! This is a test message. PR1`',
     status: 'Server is running'
   });
 });

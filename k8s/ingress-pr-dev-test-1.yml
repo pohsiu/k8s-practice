@@ -1,26 +1,26 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: express-app-pr-dev-1
+  name: express-app-pr-dev-test-1
   annotations:
     # Nginx Ingress Controller canary annotations for header-based routing
-    # This ingress will route traffic when x-multi-env header matches "pr-dev-1"
+    # This ingress will route traffic when x-multi-env header matches "pr-dev-test-1"
     nginx.ingress.kubernetes.io/canary: "true"
     nginx.ingress.kubernetes.io/canary-weight: "100"
     nginx.ingress.kubernetes.io/canary-by-header: "x-multi-env"
-    nginx.ingress.kubernetes.io/canary-by-header-value: "pr-dev-1"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "pr-dev-test-1"
 spec:
   ingressClassName: nginx
   rules:
-  - host: your-domain.com  # Change this to your actual domain
+  - host: 192.168.49.2.nip.io
     http:
       paths:
-      # Route requests with x-multi-env: pr-dev-1 header to pr-dev-1 service
+      # Route requests with x-multi-env: pr-dev-test-1 header to pr-dev-test-1 service
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: express-app-pr-dev-1
+            name: express-app-pr-dev-test-1
             port:
               number: 80
 
