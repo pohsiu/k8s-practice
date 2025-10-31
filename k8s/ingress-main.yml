@@ -1,0 +1,43 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: express-app-main
+  annotations:
+    # Nginx Ingress Controller annotations for header-based routing
+    # This main ingress routes traffic to different PR branch services based on x-multi-env header
+    nginx.ingress.kubernetes.io/server-snippet: |
+      set $upstream_service "";
+      
+      if ($http_x_multi_env = "pr-dev-1") {
+        set $upstream_service "express-app-pr-dev-1";
+      }
+      # Add more PR branches here as needed
+      # if ($http_x_multi_env = "pr-dev-2") {
+      #   set $upstream_service "express-app-pr-dev-2";
+      # }
+      
+      if ($upstream_service = "") {
+        return 404;
+      }
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: your-domain.com  # Change this to your actual domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: express-app-pr-dev-1  # Default service, can be any
+            port:
+              number: 80
+      # Add paths for each PR branch service
+      # - path: /pr-dev-1
+      #   pathType: Prefix
+      #   backend:
+      #     service:
+      #       name: express-app-pr-dev-1
+      #       port:
+      #         number: 80
+

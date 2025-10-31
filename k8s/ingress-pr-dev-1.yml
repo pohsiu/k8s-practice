@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: express-app-pr-dev-1
+  annotations:
+    # Nginx Ingress Controller annotations for header-based routing
+    # This ingress will route traffic when x-multi-env header matches "pr-dev-1"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      # Only route if x-multi-env header matches pr-dev-1
+      if ($http_x_multi_env != "pr-dev-1") {
+        return 404;
+      }
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: your-domain.com  # Change this to your actual domain
+    http:
+      paths:
+      # Route requests with x-multi-env: pr-dev-1 header to pr-dev-1 service
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: express-app-pr-dev-1
+            port:
+              number: 80
+

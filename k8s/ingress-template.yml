@@ -1,0 +1,27 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: express-app-{{PR_BRANCH}}
+  annotations:
+    # Nginx Ingress Controller annotations for header-based routing
+    # This ingress will route traffic when x-multi-env header matches the PR branch name
+    nginx.ingress.kubernetes.io/server-snippet: |
+      # Only route if x-multi-env header matches {{PR_BRANCH}}
+      if ($http_x_multi_env != "{{PR_BRANCH}}") {
+        return 404;
+      }
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: your-domain.com  # Change this to your actual domain
+    http:
+      paths:
+      # Route requests with x-multi-env: {{PR_BRANCH}} header to {{PR_BRANCH}} service
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: express-app-{{PR_BRANCH}}
+            port:
+              number: 80
+
