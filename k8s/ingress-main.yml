@@ -3,6 +3,9 @@ kind: Ingress
 metadata:
   name: express-app-main
   annotations:
+    # WARNING: This approach requires server-snippet to be enabled in nginx ingress controller
+    # If snippets are disabled, this ingress will fail to deploy
+    # Use the canary-based approach (ingress-template.yml) instead
     # Nginx Ingress Controller annotations for header-based routing
     # This main ingress routes traffic to different PR branch services based on x-multi-env header
     nginx.ingress.kubernetes.io/server-snippet: |

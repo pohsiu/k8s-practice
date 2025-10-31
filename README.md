@@ -91,13 +91,13 @@ This will create:
 
 ### 3. Update Ingress Host
 
-Edit the generated ingress file and update the `host` field in the ingress rules to your actual domain:
+Edit the generated ingress file and update the `host` field in the ingress rules to your actual domain. **Important**: The default ingress and PR branch ingresses must use the same host for canary routing to work:
 
 ```yaml
 spec:
   ingressClassName: nginx
   rules:
-  - host: your-actual-domain.com  # Update this
+  - host: your-actual-domain.com  # Update this - must match default ingress host
 ```
 
 ### 4. Deploy to Kubernetes
@@ -132,7 +132,9 @@ curl http://your-actual-domain.com/
 ### PR Branch Services
 1. **Deployment**: Each PR branch gets its own deployment with labels (`app: express-app` and `branch: <pr-branch>`)
 2. **Service**: Service selects pods by matching labels (`app: express-app` and `branch: <pr-branch>`)
-3. **Ingress**: Ingress uses nginx annotations to check the `x-multi-env` header:
+3. **Ingress**: Ingress uses nginx canary annotations for header-based routing (no server-snippet required):
+   - Default ingress acts as the base
+   - PR branch ingresses use canary annotations: `canary: "true"`, `canary-weight: "100"`, `canary-by-header: "x-multi-env"`
    - If header matches the PR branch name (e.g., `x-multi-env: pr-dev-1`), traffic routes to that PR service
    - If header doesn't match, request falls through to default service
 
