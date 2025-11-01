@@ -1,0 +1,69 @@
+# Default values for express-app
+# This is a YAML-formatted file.
+
+# Name override for simpler resource names
+nameOverride: "express-app"
+fullnameOverride: "express-app"
+
+# Global configuration
+global:
+  appName: express-app
+  ingressClassName: nginx
+  host: your-domain.com  # Override this in your environment
+
+# Default environment configuration
+default:
+  enabled: true
+  image:
+    repository: express-app
+    tag: latest
+    pullPolicy: IfNotPresent
+  replicaCount: 1
+  service:
+    type: NodePort  # Use NodePort for minikube, ClusterIP for production
+    port: 80
+    targetPort: 3000
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+# PR branches configuration
+# Each PR branch will get its own deployment, service, and ingress
+prBranches:
+  # Example PR branch
+  # pr-dev-1:
+  #   enabled: true
+  #   image:
+  #     repository: express-app
+  #     tag: pr-dev-1
+  #   replicaCount: 1
+  #   service:
+  #     type: ClusterIP
+  #   resources:
+  #     requests:
+  #       memory: "128Mi"
+  #       cpu: "100m"
+  #     limits:
+  #       memory: "256Mi"
+  #       cpu: "200m"
+
+# Environment variables
+env:
+  PORT: "3000"
+

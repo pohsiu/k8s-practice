@@ -13,22 +13,37 @@ jobs:
       uses: medyagh/setup-minikube@master
     - name: Try the cluster !
       run: kubectl get pods -A
+    - name: Install Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: '3.12.0'
     - name: Build image
       run: |
           export SHELL=/bin/bash
           eval $(minikube -p minikube docker-env)
           docker build -f ./Dockerfile -t express-app:latest .
           echo -n "verifying images:"
-          docker images         
-    - name: Deploy to minikube
+          docker images
+    - name: Get minikube IP and update values
       run: |
-        kubectl apply -f k8s/deployment-default.yml
-        kubectl apply -f k8s/service-default.yml
-        kubectl apply -f k8s/ingress-default.yml
+          MINIKUBE_IP=$(minikube ip)
+          echo "Minikube IP: $MINIKUBE_IP"
+          # Update values file with minikube IP
+          sed -i "s|host:.*|host: $MINIKUBE_IP.nip.io|" helm/express-app/values-minikube.yaml
+          echo "Updated ingress host to: $MINIKUBE_IP.nip.io"
+    - name: Deploy to minikube using Helm
+      run: |
+        helm upgrade --install express-app ./helm/express-app \
+          --namespace default \
+          --create-namespace \
+          -f helm/express-app/values-minikube.yaml \
+          --wait \
+          --timeout 5m
     - name: Wait for deployment to be ready
       run: |
         kubectl rollout status deployment/express-app-default --timeout=120s
         kubectl get pods -l type=default
+        kubectl get all -l app=express-app
     - name: Test service URLs
       run: |
           minikube service list

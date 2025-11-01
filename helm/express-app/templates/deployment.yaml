@@ -1,0 +1,98 @@
+{{- if .Values.default.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "express-app.default.deploymentName" . }}
+  labels:
+    {{- include "express-app.default.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.default.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.global.appName }}
+      type: default
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.global.appName }}
+        type: default
+    spec:
+      containers:
+      - name: {{ .Values.global.appName }}
+        image: "{{ .Values.default.image.repository }}:{{ .Values.default.image.tag }}"
+        imagePullPolicy: {{ .Values.default.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.default.service.targetPort }}
+          protocol: TCP
+        env:
+        {{- range $key, $value := .Values.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.default.resources | nindent 10 }}
+        {{- if .Values.default.livenessProbe }}
+        livenessProbe:
+          {{- toYaml .Values.default.livenessProbe | nindent 10 }}
+        {{- end }}
+        {{- if .Values.default.readinessProbe }}
+        readinessProbe:
+          {{- toYaml .Values.default.readinessProbe | nindent 10 }}
+        {{- end }}
+{{- end }}
+
+{{- range $prBranch, $prConfig := .Values.prBranches }}
+{{- if $prConfig.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "express-app.pr.deploymentName" (dict "Values" $.Values "Release" $.Release "Chart" $.Chart "prBranch" $prBranch) }}
+  labels:
+    {{- include "express-app.pr.selectorLabels" (dict "Values" $.Values "Release" $.Release "Chart" $.Chart "prBranch" $prBranch) | nindent 4 }}
+spec:
+  replicas: {{ $prConfig.replicaCount | default $.Values.default.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ $.Values.global.appName }}
+      branch: {{ $prBranch }}
+  template:
+    metadata:
+      labels:
+        app: {{ $.Values.global.appName }}
+        branch: {{ $prBranch }}
+    spec:
+      containers:
+      - name: {{ $.Values.global.appName }}
+        image: "{{ $prConfig.image.repository | default $.Values.default.image.repository }}:{{ $prConfig.image.tag | default $prBranch }}"
+        imagePullPolicy: {{ $prConfig.image.pullPolicy | default $.Values.default.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ $prConfig.service.targetPort | default $.Values.default.service.targetPort }}
+          protocol: TCP
+        env:
+        {{- range $key, $value := $.Values.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml ($prConfig.resources | default $.Values.default.resources) | nindent 10 }}
+        {{- if $prConfig.livenessProbe }}
+        livenessProbe:
+          {{- toYaml $prConfig.livenessProbe | nindent 10 }}
+        {{- else if $.Values.default.livenessProbe }}
+        livenessProbe:
+          {{- toYaml $.Values.default.livenessProbe | nindent 10 }}
+        {{- end }}
+        {{- if $prConfig.readinessProbe }}
+        readinessProbe:
+          {{- toYaml $prConfig.readinessProbe | nindent 10 }}
+        {{- else if $.Values.default.readinessProbe }}
+        readinessProbe:
+          {{- toYaml $.Values.default.readinessProbe | nindent 10 }}
+        {{- end }}
+{{- end }}
+{{- end }}
+
