@@ -46,7 +46,7 @@ echo "🔧 Updating ingress for minikube..."
 echo "🚀 Deploying to Kubernetes..."
 kubectl apply -f k8s/deployment-$PR_BRANCH.yml
 kubectl apply -f k8s/service-$PR_BRANCH.yml
-kubectl apply -f k8s/ingress-$PR_BRANCH.yml
+# kubectl apply -f k8s/ingress-$PR_BRANCH.yml
 
 # Wait for deployment
 echo "⏳ Waiting for deployment to be ready..."

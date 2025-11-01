@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-proxy-ingress
+  annotations:
+    # Simple ingress without any snippets
+    # Just routes all traffic to our custom nginx proxy
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: 192.168.49.2.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: nginx-proxy
+            port:
+              number: 80
+

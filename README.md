@@ -107,10 +107,29 @@ Apply the manifests to your Kubernetes cluster:
 ```bash
 kubectl apply -f k8s/deployment-pr-dev-1.yml
 kubectl apply -f k8s/service-pr-dev-1.yml
-kubectl apply -f k8s/ingress-pr-dev-1.yml
 ```
 
-### 5. Test the Deployment
+### 5. Attach to nginx proxy
+To route PR-based traffic via the custom nginx proxy, you need to register each PR branch with the nginx proxy system. This lets nginx dynamically pick up routing rules and upstreams for your PR.
+
+You can do this automatically using the **add-pr-to-nginx-proxy** script:
+
+```bash
+# Run this after deploying the PR's deployment and service
+./scripts/add-pr-to-nginx-proxy-v2.sh pr-dev-1
+```
+
+What this does:
+- **Creates a ConfigMap**: Defines an nginx upstream for your PR service and a routing rule that checks for the `x-multi-env: pr-dev-1` header.
+- **Labels the ConfigMap**: Allows easy management of PR configs.
+- **Mounts the ConfigMap in the nginx proxy deployment**: The custom proxy picks up the new routing info without requiring a proxy restart.
+
+_Note_: You must have already deployed the nginx proxy (`deploy-nginx-proxy.sh`), and the target PR branch service (`express-app-pr-dev-1`) must exist in your cluster.
+
+If you add more PR branches, repeat the steps for each one (replace `pr-dev-1` as appropriate).
+
+
+### 6. Test the Deployment
 
 Test the deployment by sending a request with the `x-multi-env` header:
 
@@ -121,6 +140,7 @@ curl -H "x-multi-env: pr-dev-1" http://your-actual-domain.com/
 # Request without PR branch header (routes to default service)
 curl http://your-actual-domain.com/
 ```
+
 
 ## How It Works
 
@@ -169,6 +189,7 @@ curl http://your-actual-domain.com/
 1. **Deploy PR branch service:**
    ```bash
    ./scripts/deploy-to-minikube.sh pr-dev-1
+   ./scripts/add-pr-to-nginx-proxy-v2 pr-dev-1
    ```
 
 2. **Test with PR branch header:**

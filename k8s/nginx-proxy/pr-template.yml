@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-proxy-{{PR_BRANCH}}-config
+  labels:
+    app: nginx-proxy
+    pr-branch: {{PR_BRANCH}}
+data:
+  # Upstream definition for {{PR_BRANCH}}
+  upstream.conf: |
+    upstream {{PR_BRANCH}} {
+      server express-app-{{PR_BRANCH}}:80;
+    }
+  
+  # Routing rule for {{PR_BRANCH}}
+  route.conf: |
+    if ($http_x_multi_env = "{{PR_BRANCH}}") {
+      set $upstream "{{PR_BRANCH}}";
+    }
+

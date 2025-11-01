@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-proxy
+  labels:
+    app: nginx-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-proxy
+  template:
+    metadata:
+      labels:
+        app: nginx-proxy
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.25-alpine
+        ports:
+        - containerPort: 80
+          name: http
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        # Mount upstreams directory
+        - name: upstreams-dir
+          mountPath: /etc/nginx/conf.d/upstreams
+        # Mount routes directory
+        - name: routes-dir
+          mountPath: /etc/nginx/conf.d/routes
+        # Mount pr-dev-1 upstream config
+        - name: pr-dev-1-config
+          mountPath: /etc/nginx/conf.d/upstreams/pr-dev-1.conf
+          subPath: upstream.conf
+        # Mount pr-dev-1 route config
+        - name: pr-dev-1-config
+          mountPath: /etc/nginx/conf.d/routes/pr-dev-1.conf
+          subPath: route.conf
+        # Mount pr-dev-2 upstream config
+        - name: pr-dev-2-config
+          mountPath: /etc/nginx/conf.d/upstreams/pr-dev-2.conf
+          subPath: upstream.conf
+        # Mount pr-dev-2 route config
+        - name: pr-dev-2-config
+          mountPath: /etc/nginx/conf.d/routes/pr-dev-2.conf
+          subPath: route.conf
+        # Mount pr-dev-4 upstream config
+        - name: pr-dev-4-config
+          mountPath: /etc/nginx/conf.d/upstreams/pr-dev-4.conf
+          subPath: upstream.conf
+        # Mount pr-dev-4 route config
+        - name: pr-dev-4-config
+          mountPath: /etc/nginx/conf.d/routes/pr-dev-4.conf
+          subPath: route.conf
+        livenessProbe:
+          httpGet:
+            path: /nginx-health
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /nginx-health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-proxy-config
+      # Volume for upstreams directory
+      - name: upstreams-dir
+        emptyDir: {}
+      # Volume for routes directory
+      - name: routes-dir
+        emptyDir: {}
+      # ConfigMap for pr-dev-1
+      - name: pr-dev-1-config
+        configMap:
+          name: nginx-proxy-pr-dev-1-config
+          optional: true
+      # ConfigMap for pr-dev-2
+      - name: pr-dev-2-config
+        configMap:
+          name: nginx-proxy-pr-dev-2-config
+          optional: true
+      # ConfigMap for pr-dev-4
+      - name: pr-dev-4-config
+        configMap:
+          name: nginx-proxy-pr-dev-4-config
+          optional: true
+
