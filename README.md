@@ -17,27 +17,37 @@ This project demonstrates how to deploy Express applications to Kubernetes with 
 
 ```
 .
-├── server.js              # Express application
-├── Dockerfile             # Docker image definition
-├── package.json           # Node.js dependencies
+├── server.js                # Express application entry point
+├── Dockerfile               # Docker image definition
+├── package.json             # Node.js dependencies and scripts
 ├── k8s/
-│   ├── deployment-template.yml    # Deployment template
-│   ├── service-template.yml       # Service template
-│   ├── ingress-template.yml       # Ingress template
-│   ├── deployment-default.yml     # Default deployment (no branch label)
-│   ├── service-default.yml        # Default service (no branch label)
-│   ├── ingress-default.yml        # Default ingress for requests without PR header
-│   ├── deployment-pr-dev-1.yml    # Example deployment for pr-dev-1
-│   ├── service-pr-dev-1.yml       # Example service for pr-dev-1
-│   ├── ingress-pr-dev-1.yml      # Example ingress for pr-dev-1
-│   └── generate-pr-manifests.sh   # Script to generate manifests for new PR branches
+│   ├── deployment-template.yml      # Template for PR-based deployments
+│   ├── service-template.yml         # Template for PR-based services
+│   ├── deployment-default.yml       # Deployment for default service
+│   ├── service-default.yml          # Service for default deployment
+│   ├── deployment-pr-dev-1.yml      # [Example] Generated deployment for pr-dev-1
+│   ├── service-pr-dev-1.yml         # [Example] Generated service for pr-dev-1
+│   └── nginx-proxy/
+│       ├── configmap.yml            # Main nginx config (imports upstreams/routes)
+│       ├── deployment.yml           # Nginx proxy Deployment spec
+│       ├── service.yml              # Service exposing nginx proxy
+│       ├── ingress.yml              # Ingress resource for nginx proxy
+│       ├── pr-template.yml      # [Example] PR config map snippet for nginx
+│       └── pr-[branch-name]-config.yml          # [Generated] ConfigMaps for each PR branch
 ├── scripts/
-│   ├── setup-minikube.sh              # Setup minikube script
-│   ├── deploy-default-to-minikube.sh  # Deploy default service to minikube
-│   ├── deploy-to-minikube.sh          # Deploy PR branch to minikube
-│   └── update-ingress-for-minikube.sh # Update ingress host for minikube
+│   ├── setup-minikube.sh                 # Minikube setup, enable addons
+│   ├── deploy-default-to-minikube.sh     # Deploy default service to minikube
+│   ├── deploy-to-minikube.sh             # Deploy PR branch: build, manifest, kubectl apply
+│   ├── deploy-nginx-proxy.sh             # Deploy/rollout the nginx proxy
+│   ├── add-pr-to-nginx-proxy.sh          # Add a PR branch config to nginx proxy and reload
+│   └── add-pr-to-nginx-proxy-v2.sh       # Alternative script for PR→nginx update
 └── README.md
 ```
+
+*Notes*:
+- All `*-pr-*` and `*-config.yml` files are generated per branch, not tracked directly.
+- The `scripts/` directory includes all cluster and deployment automation.
+- `k8s/nginx-proxy/` includes all infrastructure for routing requests based on PR environments.
 
 ## Setup
 
@@ -77,30 +87,19 @@ docker push your-registry/express-app:pr-dev-1
 
 ### 2. Generate Kubernetes Manifests
 
-When a PR is created (e.g., branch `pr-dev-1`), generate the Kubernetes manifests:
+When a PR is created (e.g., branch `pr-dev-1`), generate the Kubernetes manifests from templates:
 
 ```bash
-cd k8s
-./generate-pr-manifests.sh pr-dev-1
+# Generate deployment and service manifests
+sed "s/{{PR_BRANCH}}/pr-dev-1/g" k8s/deployment-template.yml > k8s/deployment-pr-dev-1.yml
+sed "s/{{PR_BRANCH}}/pr-dev-1/g" k8s/service-template.yml > k8s/service-pr-dev-1.yml
 ```
 
 This will create:
 - `deployment-pr-dev-1.yml`
 - `service-pr-dev-1.yml`
-- `ingress-pr-dev-1.yml`
 
-### 3. Update Ingress Host
-
-Edit the generated ingress file and update the `host` field in the ingress rules to your actual domain. **Important**: The default ingress and PR branch ingresses must use the same host for canary routing to work:
-
-```yaml
-spec:
-  ingressClassName: nginx
-  rules:
-  - host: your-actual-domain.com  # Update this - must match default ingress host
-```
-
-### 4. Deploy to Kubernetes
+### 3. Deploy to Kubernetes
 
 Apply the manifests to your Kubernetes cluster:
 
@@ -109,7 +108,7 @@ kubectl apply -f k8s/deployment-pr-dev-1.yml
 kubectl apply -f k8s/service-pr-dev-1.yml
 ```
 
-### 5. Attach to nginx proxy
+### 4. Attach to nginx proxy
 To route PR-based traffic via the custom nginx proxy, you need to register each PR branch with the nginx proxy system. This lets nginx dynamically pick up routing rules and upstreams for your PR.
 
 You can do this automatically using the **add-pr-to-nginx-proxy** script:
@@ -129,7 +128,7 @@ _Note_: You must have already deployed the nginx proxy (`deploy-nginx-proxy.sh`)
 If you add more PR branches, repeat the steps for each one (replace `pr-dev-1` as appropriate).
 
 
-### 6. Test the Deployment
+### 5. Test the Deployment
 
 Test the deployment by sending a request with the `x-multi-env` header:
 
@@ -188,8 +187,11 @@ curl http://your-actual-domain.com/
 
 1. **Deploy PR branch service:**
    ```bash
+   # This script will build the image, generate manifests, and deploy
    ./scripts/deploy-to-minikube.sh pr-dev-1
-   ./scripts/add-pr-to-nginx-proxy-v2 pr-dev-1
+   
+   # Add the PR to nginx proxy for header-based routing
+   ./scripts/add-pr-to-nginx-proxy.sh pr-dev-1
    ```
 
 2. **Test with PR branch header:**
@@ -234,17 +236,16 @@ curl http://your-actual-domain.com/
    # Build PR branch image
    docker build -t express-app:pr-dev-1 .
    
-   # Generate manifests if needed
-   cd k8s && ./generate-pr-manifests.sh pr-dev-1 && cd ..
-   
-   # Update ingress host
-   MINIKUBE_IP=$(minikube ip)
-   sed -i.bak "s/your-domain.com/$MINIKUBE_IP.nip.io/" k8s/ingress-pr-dev-1.yml
+   # Generate manifests from templates
+   sed "s/{{PR_BRANCH}}/pr-dev-1/g" k8s/deployment-template.yml > k8s/deployment-pr-dev-1.yml
+   sed "s/{{PR_BRANCH}}/pr-dev-1/g" k8s/service-template.yml > k8s/service-pr-dev-1.yml
    
    # Deploy
    kubectl apply -f k8s/deployment-pr-dev-1.yml
    kubectl apply -f k8s/service-pr-dev-1.yml
-   kubectl apply -f k8s/ingress-pr-dev-1.yml
+   
+   # Add to nginx proxy
+   ./scripts/add-pr-to-nginx-proxy.sh pr-dev-1
    ```
 
 ### Useful Commands
@@ -273,6 +274,43 @@ minikube stop
 # Delete minikube cluster
 minikube delete
 ```
+
+## GitHub Actions CI/CD
+
+This project includes GitHub Actions workflows for automated PR deployments:
+
+### Workflows
+
+1. **`pr-created.yaml`** - Automatically deploys PR environments when a PR is opened/updated
+2. **`pr-close.yaml`** - Cleans up resources when a PR is closed
+3. **`deploy.yaml`** - Deploys to the main environment on push to main branch
+
+### Requirements for GitHub Actions
+
+To use the PR deployment workflow, you need:
+
+1. **Kubernetes Cluster Access**: Configure kubectl access in GitHub Actions
+   - Add kubeconfig as a GitHub secret
+   - Or use cloud provider actions (e.g., `azure/k8s-set-context`, `aws-actions/configure-aws-credentials`)
+
+2. **Minikube Setup** (if using minikube in CI):
+   ```yaml
+   - name: Start minikube
+     uses: medyagh/setup-minikube@master
+   ```
+
+3. **Container Registry** (for production):
+   - Configure registry credentials
+   - Update image references to use your registry
+
+### Note on `deploy-to-minikube.sh`
+
+The `deploy-to-minikube.sh` script is designed for local minikube environments. When using it in GitHub Actions:
+- Ensure minikube is started first
+- The script will automatically:
+  - Build the Docker image using minikube's Docker daemon
+  - Generate Kubernetes manifests from templates
+  - Deploy to the cluster
 
 ## Local Development
 
