@@ -26,16 +26,10 @@ jobs:
         with:
           version: 'latest'
           
-      - name: Configure K8s credentials
-        run: |
-          # 配置 kubectl 連接到你的集群
-          # 這裡需要根據你的實際情況配置
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-          
       - name: Check if backend service exists
         id: check-service
         run: |
-          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          PR_BRANCH="pr-${{ github.head_ref }}"
           if kubectl get service express-app-$PR_BRANCH &>/dev/null; then
             echo "service_exists=true" >> $GITHUB_OUTPUT
           else
@@ -45,13 +39,13 @@ jobs:
       - name: Deploy backend service (if needed)
         if: steps.check-service.outputs.service_exists == 'false'
         run: |
-          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          PR_BRANCH="pr-${{ github.head_ref }}"
           # 部署後端服務
           ./scripts/deploy-to-minikube.sh $PR_BRANCH
           
       - name: Add PR to Nginx Proxy
         run: |
-          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          PR_BRANCH="pr-${{ github.head_ref }}"
           ./scripts/add-pr-to-nginx-proxy.sh $PR_BRANCH
           
       - name: Commit and push changes (GitOps)
@@ -93,7 +87,7 @@ jobs:
           
       - name: Verify deployment
         run: |
-          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          PR_BRANCH="pr-${{ github.head_ref }}"
           
           echo "🔍 Verifying nginx proxy configuration..."
           

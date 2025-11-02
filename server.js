@@ -8,7 +8,7 @@ app.use(express.json());
 // Routes
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'Default service`',
+    message: 'pr-dev-1 service`',
     status: 'Server is running'
   });
 });

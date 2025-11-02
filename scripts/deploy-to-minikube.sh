@@ -30,17 +30,10 @@ eval $(minikube docker-env)
 echo "📦 Building Docker image..."
 docker build -t express-app:$PR_BRANCH .
 
-# Generate manifests if they don't exist
-if [ ! -f "k8s/deployment-$PR_BRANCH.yml" ]; then
-    echo "📝 Generating manifests..."
-    cd k8s
-    ./generate-pr-manifests.sh $PR_BRANCH
-    cd ..
-fi
-
-# Update ingress host
-echo "🔧 Updating ingress for minikube..."
-./scripts/update-ingress-for-minikube.sh $PR_BRANCH
+# Generate manifests from templates
+echo "📝 Generating manifests from templates..."
+sed "s/{{PR_BRANCH}}/$PR_BRANCH/g" k8s/deployment-template.yml > k8s/deployment-$PR_BRANCH.yml
+sed "s/{{PR_BRANCH}}/$PR_BRANCH/g" k8s/service-template.yml > k8s/service-$PR_BRANCH.yml
 
 # Deploy to Kubernetes
 echo "🚀 Deploying to Kubernetes..."
@@ -53,10 +46,9 @@ kubectl rollout status deployment/express-app-$PR_BRANCH --timeout=60s
 
 echo "✅ Deployment complete!"
 echo ""
-echo "🧪 Test your deployment:"
-echo "   curl -H 'x-multi-env: $PR_BRANCH' http://$MINIKUBE_IP.nip.io/"
-echo ""
 echo "📊 Check status:"
 echo "   kubectl get pods -l branch=$PR_BRANCH"
 echo "   kubectl get svc express-app-$PR_BRANCH"
-echo "   kubectl get ingress express-app-$PR_BRANCH"
+echo ""
+echo "🧪 Access your service via nginx proxy:"
+echo "   curl -H 'x-multi-env: $PR_BRANCH' http://$MINIKUBE_IP.nip.io/"
