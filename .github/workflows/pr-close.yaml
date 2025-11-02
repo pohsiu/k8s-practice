@@ -16,12 +16,9 @@ on:
           uses: azure/setup-kubectl@v3
           with:
             version: 'latest'
-        - name: Configure K8s credentials
-          run: |
-            echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
         - name: Remove PR from Nginx Proxy
           run: |
-            PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+            PR_BRANCH="pr-${{ github.head_ref }}"
             kubectl delete configmap nginx-proxy-$PR_BRANCH-config
     remove-pr-from-deployment:
       runs-on: ubuntu-latest
@@ -36,7 +33,7 @@ on:
             version: 'latest'
         - name: Configure K8s credentials
           run: |
-            PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+            PR_BRANCH="pr-${{ github.head_ref }}"
             kubectl delete deployment express-app-$PR_BRANCH
             kubectl delete service express-app-$PR_BRANCH
     rollout-nginx-proxy:
@@ -55,6 +52,6 @@ on:
             echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
         - name: Rollout Nginx Proxy
           run: |
-            PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+            PR_BRANCH="pr-${{ github.head_ref }}"
             kubectl rollout restart deployment/nginx-proxy
     
