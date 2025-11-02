@@ -31,7 +31,6 @@ echo "✅ Updated k8s/ingress-default.yml to use host: $MINIKUBE_IP.nip.io"
 # Deploy to Kubernetes
 echo "🚀 Deploying default service to Kubernetes..."
 kubectl apply -f k8s/deployment-default.yml
-kubectl apply -f k8s/service-default.yml
 
 # Wait for deployment
 echo "⏳ Waiting for deployment to be ready..."

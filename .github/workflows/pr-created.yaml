@@ -1,0 +1,127 @@
+name: Create PR environment and add to nginx proxy
+
+# 當 PR 被創建或更新時觸發
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  add-to-nginx-proxy:
+    runs-on: ubuntu-latest
+    
+    # 🔒 關鍵：使用 concurrency 控制避免並發問題
+    # 所有 PR 的配置更新會排隊執行，不會同時進行
+    concurrency:
+      group: nginx-proxy-config-update
+      cancel-in-progress: false  # 不取消，而是排隊等待
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+          
+      - name: Configure K8s credentials
+        run: |
+          # 配置 kubectl 連接到你的集群
+          # 這裡需要根據你的實際情況配置
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          
+      - name: Check if backend service exists
+        id: check-service
+        run: |
+          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          if kubectl get service express-app-$PR_BRANCH &>/dev/null; then
+            echo "service_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "service_exists=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Deploy backend service (if needed)
+        if: steps.check-service.outputs.service_exists == 'false'
+        run: |
+          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          # 部署後端服務
+          ./scripts/deploy-to-minikube.sh $PR_BRANCH
+          
+      - name: Add PR to Nginx Proxy
+        run: |
+          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          ./scripts/add-pr-to-nginx-proxy.sh $PR_BRANCH
+          
+      - name: Commit and push changes (GitOps)
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # 檢查是否有變更
+          if [[ -n $(git status -s) ]]; then
+            git add k8s/nginx-proxy/
+            git commit -m "chore: add PR ${{ github.event.pull_request.number }} to nginx proxy"
+            
+            # 使用重試機制處理可能的衝突
+            MAX_RETRIES=3
+            RETRY_COUNT=0
+            
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              if git push; then
+                echo "✅ Push successful"
+                break
+              else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                echo "⚠️  Push failed, retry $RETRY_COUNT/$MAX_RETRIES"
+                
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  git pull --rebase origin ${{ github.ref_name }}
+                  sleep 5
+                fi
+              fi
+            done
+            
+            if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+              echo "❌ Failed to push after $MAX_RETRIES retries"
+              exit 1
+            fi
+          else
+            echo "ℹ️  No changes to commit"
+          fi
+          
+      - name: Verify deployment
+        run: |
+          PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+          
+          echo "🔍 Verifying nginx proxy configuration..."
+          
+          # 檢查 ConfigMap
+          kubectl get configmap nginx-proxy-$PR_BRANCH-config
+          
+          # 檢查配置是否載入到 Pod
+          POD_NAME=$(kubectl get pod -l app=nginx-proxy -o name)
+          kubectl exec -it $POD_NAME -- ls /etc/nginx/conf.d/upstreams/$PR_BRANCH.conf
+          kubectl exec -it $POD_NAME -- ls /etc/nginx/conf.d/routes/$PR_BRANCH.conf
+          
+      - name: Comment on PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `✅ This PR has been added to nginx proxy!
+              
+              **Test your deployment:**
+              \`\`\`bash
+              curl -H "x-multi-env: pr-${{ github.event.pull_request.number }}" https://your-domain.com/
+              \`\`\`
+              
+              **Deployed services:**
+              - Backend: \`express-app-pr-${{ github.event.pull_request.number }}\`
+              - Nginx route: \`pr-${{ github.event.pull_request.number }}\`
+              `
+            })

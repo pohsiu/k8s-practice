@@ -1,0 +1,60 @@
+name: Close PR environment and rollout nginx proxy
+
+on:
+  pull_request:
+      types: [closed, merged]
+
+  jobs:
+    remove-pr-from-nginx-proxy:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+          with:
+            token: ${{ secrets.GITHUB_TOKEN }}
+        - name: Setup kubectl
+          uses: azure/setup-kubectl@v3
+          with:
+            version: 'latest'
+        - name: Configure K8s credentials
+          run: |
+            echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        - name: Remove PR from Nginx Proxy
+          run: |
+            PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+            kubectl delete configmap nginx-proxy-$PR_BRANCH-config
+    remove-pr-from-deployment:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+          with:
+            token: ${{ secrets.GITHUB_TOKEN }}
+        - name: Setup kubectl
+          uses: azure/setup-kubectl@v3
+          with:
+            version: 'latest'
+        - name: Configure K8s credentials
+          run: |
+            PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+            kubectl delete deployment express-app-$PR_BRANCH
+            kubectl delete service express-app-$PR_BRANCH
+    rollout-nginx-proxy:
+      runs-on: ubuntu-latest
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v3
+          with:
+            token: ${{ secrets.GITHUB_TOKEN }}
+        - name: Setup kubectl
+          uses: azure/setup-kubectl@v3
+          with:
+            version: 'latest'
+        - name: Configure K8s credentials
+          run: |
+            echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+        - name: Rollout Nginx Proxy
+          run: |
+            PR_BRANCH="pr-${{ github.event.pull_request.number }}"
+            kubectl rollout restart deployment/nginx-proxy
+    
